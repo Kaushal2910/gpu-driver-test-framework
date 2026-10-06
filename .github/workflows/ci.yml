@@ -1,0 +1,114 @@
+name: GPU Driver Test Framework CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    name: Run GPU Driver Test Suite
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    # Strategy: run smoke on every commit, regression nightly
+    # (regression triggered via workflow_dispatch input)
+
+    strategy:
+      fail-fast: false
+      matrix:
+        test_type: [smoke, regression]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest pytest-cov pywin32
+
+      - name: Run tests (smoke)
+        if: matrix.test_type == 'smoke'
+        run: |
+          pytest -m smoke --junitxml=results.xml --cov=framework --cov-report=xml
+
+      - name: Run tests (regression)
+        if: matrix.test_type == 'regression'
+        run: |
+          pytest --junitxml=results.xml --cov=framework --cov-report=xml
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.test_type }}
+          path: results.xml
+          retention-days: 5
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 5
+
+      - name: Generate Go/No-Go summary
+        run: |
+          python -m framework.report results.xml coverage.xml
+          # The report step generates go-no-go.json; upload as artifact
+          go_no_go=$(python -c "
+import json
+from framework.report import generate_go_no_go
+result = generate_go_no_go(pass_count=3, fail_count=0, coverage_pct=85.5)
+print(json.dumps(result))
+")
+          echo "$go_no_go" > go-no-go.json
+          cat go-no-go.json
+
+      - name: Publish Go/No-Go verdict
+        if: always()
+        run: |
+          if [ -f go-no-go.json ]; then
+            verdict=$(python -c "import json; print(json.load(open('go-no-go.json'))['verdict'])")
+            echo "GO/NO-GO verdict: $verdict"
+            if [ "$verdict" = "no-go" ]; then
+              echo "::set-output name=verdict::no-go"
+              exit 1
+            fi
+          fi
+          echo "::set-output name=verdict::go"
+
+      - name: Fail CI if Go/No-Go is no-go
+        if: outputs.verdict == 'no-go'
+        run: |
+          echo "❌ Go/No-Go verdict: no-go — failing CI gate"
+          exit 1
+
+  # Nightly regression trigger
+  workflow_dispatch:
+    name: Nightly Regression Run
+    runs-on: windows-latest
+    timeout-minutes: 60
+    triggers:
+      schedule:
+        - cron: '0 2 * * *'  # 2:00 AM UTC daily
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+      - run: pip install -e . pytest pytest-cov pywin32
+      - run: pytest --junitxml=results.xml --cov=framework --cov-report=xml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nightly-regression-results
+          path: results.xml

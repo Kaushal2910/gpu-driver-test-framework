@@ -1,0 +1,12 @@
+{
+  "gpus": [
+    {
+      "name": "No GPU detected",
+      "driver_version": "unknown",
+      "capacity": "",
+      "temperature": 0
+    }
+  ],
+  "source": "wmi",
+  "query": "Win32_VideoController"
+}

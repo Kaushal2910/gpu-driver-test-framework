@@ -1,0 +1,20 @@
+Metadata-Version: 2.4
+Name: gpu-driver-test-framework
+Version: 1.0.0
+Summary: Python and pytest framework that installs and rolls back GPU driver and SDK builds on Windows
+License: MIT
+Keywords: gpu,driver,test,automation,pytest,windows
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+License-File: LICENSE
+Requires-Dist: pytest>=8.0.0
+Requires-Dist: pytest-cov>=4.0.0
+Requires-Dist: pywin32>=300
+Dynamic: license-file
